@@ -9,6 +9,7 @@ import registerTx from "./routes/transactions";
 import registerItems from "./routes/items";
 import registerAccounts from "./routes/account";
 import { PluggyClient } from "./pluggy";
+import registerSandbox from "./routes/sandbox";
 
 const app = new OpenAPIHono();
 
@@ -37,6 +38,7 @@ registerEnrich(app);
 registerTx(app);
 registerItems(app);
 registerAccounts(app);
+registerSandbox(app);
 
 // Health
 app.get("/", (c) => c.json({ ok: true, service: "pluggy-pix-starter" }));

@@ -1,7 +1,12 @@
 import { CONFIG } from "./config";
 
 type AuthResponse = { apiKey: string; expiresAt?: string };
-type ListResponse<T> = { results: T[]; page?: number; total?: number; totalPages: number };
+type ListResponse<T> = {
+  results: T[];
+  page?: number;
+  total?: number;
+  totalPages: number;
+};
 type Transaction = {
   id: string | number;
   accountId: string | number;
@@ -13,7 +18,11 @@ type Transaction = {
 };
 
 const mask = (s?: string, keep = 4) =>
-  !s ? "(empty)" : s.length <= keep ? s : `${s.slice(0, 2)}***${s.slice(-keep)}`;
+  !s
+    ? "(empty)"
+    : s.length <= keep
+    ? s
+    : `${s.slice(0, 2)}***${s.slice(-keep)}`;
 
 export class PluggyClient {
   #apiKey?: string;
@@ -32,7 +41,11 @@ export class PluggyClient {
   }
 
   #isApiKeyValid() {
-    return !!this.#apiKey && !!this.#apiKeyExp && this.#apiKeyExp > Date.now() + 30_000;
+    return (
+      !!this.#apiKey &&
+      !!this.#apiKeyExp &&
+      this.#apiKeyExp > Date.now() + 30_000
+    );
   }
 
   async #fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
@@ -77,8 +90,14 @@ export class PluggyClient {
     });
     const res = await fetch(`${this.baseUrl}/auth`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ clientId: this.clientId, clientSecret: this.clientSecret }),
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        clientId: this.clientId,
+        clientSecret: this.clientSecret,
+      }),
     });
 
     if (!res.ok) {
@@ -104,13 +123,17 @@ export class PluggyClient {
   // 🔍 Endpoint de debug lo usará
   async debugAuth() {
     const key = await this.#getApiKey();
-    return { keyPrefix: key.slice(0, 8), expISO: new Date(this.#apiKeyExp!).toISOString() };
+    return {
+      keyPrefix: key.slice(0, 8),
+      expISO: new Date(this.#apiKeyExp!).toISOString(),
+    };
   }
 
   #parseCompositeAccountId(id: string) {
     if (id.includes("_")) {
       const [itemId, accountId] = id.split("_");
-      if (!itemId || !accountId) throw new Error("Formato esperado: itemId_accountId");
+      if (!itemId || !accountId)
+        throw new Error("Formato esperado: itemId_accountId");
       return { itemId, accountId };
     }
     return { itemId: undefined, accountId: id };
@@ -118,7 +141,13 @@ export class PluggyClient {
 
   async getTransactions(
     accountIdOrComposite: string,
-    opts?: { from?: string; to?: string; page?: number; pageSize?: number; latest?: boolean }
+    opts?: {
+      from?: string;
+      to?: string;
+      page?: number;
+      pageSize?: number;
+      latest?: boolean;
+    }
   ) {
     const { accountId } = this.#parseCompositeAccountId(accountIdOrComposite);
     const params = new URLSearchParams({ accountId: String(accountId) });
@@ -127,14 +156,24 @@ export class PluggyClient {
     params.set("page", String(opts?.page ?? 1));
     params.set("pageSize", String(opts?.pageSize ?? 100));
 
-    const data = await this.#fetchApi<ListResponse<Transaction>>(`/transactions?${params.toString()}`);
+    const data = await this.#fetchApi<ListResponse<Transaction>>(
+      `/transactions?${params.toString()}`
+    );
     const results = data.results ?? [];
     return opts?.latest ? results[0] ?? null : data;
   }
 
   async createPixTransfer({
-    fromAccountId, toAccountId, amount, description,
-  }: { fromAccountId: string; toAccountId: string; amount: number; description?: string }) {
+    fromAccountId,
+    toAccountId,
+    amount,
+    description,
+  }: {
+    fromAccountId: string;
+    toAccountId: string;
+    amount: number;
+    description?: string;
+  }) {
     const payload = {
       preauthorizationId: fromAccountId,
       recipientId: toAccountId,
@@ -144,14 +183,21 @@ export class PluggyClient {
     return this.#fetchApi<any>(`/smart-transfers/payments`, {
       method: "POST",
       body: JSON.stringify(payload),
-    }).then((resp) => ({ id: resp?.id, status: resp?.status ?? "CREATED", raw: resp }));
+    }).then((resp) => ({
+      id: resp?.id,
+      status: resp?.status ?? "CREATED",
+      raw: resp,
+    }));
   }
 
   async enrichTransactions(transactions: Transaction[]) {
     const payload = { data: transactions.map(this.#mapTxForEnrich) };
     const res = await fetch(`${CONFIG.BACKEND_URL}/enrich`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -176,12 +222,38 @@ export class PluggyClient {
     const params = new URLSearchParams();
     params.set("page", String(opts?.page ?? 1));
     params.set("pageSize", String(opts?.pageSize ?? 50));
-    return this.#fetchApi<{ results: any[]; page: number; total: number; totalPages: number }>(
-      `/items?${params.toString()}`
-    );
+    return this.#fetchApi<{
+      results: any[];
+      page: number;
+      total: number;
+      totalPages: number;
+    }>(`/items?${params.toString()}`);
   }
 
   async getAccountsByItem(itemId: string | number) {
     return this.#fetchApi<{ results: any[] }>(`/items/${itemId}/accounts`);
+  }
+
+  async listConnectors(opts?: { sandbox?: boolean }) {
+    const params = new URLSearchParams();
+    if (opts?.sandbox) params.set("sandbox", "true");
+    return this.#fetchApi<{ results: any[] }>(
+      `/connectors?${params.toString()}`
+    );
+  }
+
+  async createItem(input: {
+    connectorId: number;
+    parameters: Record<string, unknown>;
+    webhookUrl?: string;
+  }) {
+    return this.#fetchApi<any>("/items", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async getItem(itemId: string | number) {
+    return this.#fetchApi<any>(`/items/${itemId}`);
   }
 }
